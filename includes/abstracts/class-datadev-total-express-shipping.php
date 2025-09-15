@@ -427,15 +427,28 @@ abstract class Datadev_Total_Express_Shipping extends WC_Shipping_Method {
         $shipping = $this->get_rate($package);
 
         if (!isset($shipping->ValorServico)) {
+            if ('yes' === $this->debug) {
+                $log = new WC_Logger();
+                $log->add($this->id, 'No shipping rate returned or missing ValorServico field');
+            }
             return;
         }
 
         // Set the shipping rates.
         $label = $this->title;
         $cost = $this->string_to_float($shipping->ValorServico); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.NotSnakeCaseMemberVar
-        //$cost = (float) str_replace($shipping->ValorServico, ',', '.'); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.NotSnakeCaseMemberVar
+        
+        if ('yes' === $this->debug) {
+            $log = new WC_Logger();
+            $log->add($this->id, 'Original price from API: ' . $shipping->ValorServico . ', Converted to: ' . $cost);
+        }
+        
         // Exit if don't have price.
-        if (0 === intval($cost)) {
+        if (0 >= $cost) {
+            if ('yes' === $this->debug) {
+                $log = new WC_Logger();
+                $log->add($this->id, 'Invalid shipping cost: ' . $cost);
+            }
             return;
         }
 
@@ -445,9 +458,22 @@ abstract class Datadev_Total_Express_Shipping extends WC_Shipping_Method {
         // Display delivery.
         $meta_delivery = array();
         if ('yes' === $this->show_delivery_time) {
-            $meta_delivery = array(
-                '_delivery_forecast' => intval($shipping->Prazo) + intval($this->get_additional_time($package)), // phpcs:ignore WordPress.NamingConventions.ValidVariableName.NotSnakeCaseMemberVar
-            );
+            if (isset($shipping->Prazo)) {
+                $delivery_days = intval($shipping->Prazo) + intval($this->get_additional_time($package)); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.NotSnakeCaseMemberVar
+                $meta_delivery = array(
+                    '_delivery_forecast' => $delivery_days,
+                );
+                
+                if ('yes' === $this->debug) {
+                    $log = new WC_Logger();
+                    $log->add($this->id, 'Delivery forecast: ' . $delivery_days . ' days (API: ' . $shipping->Prazo . ', Additional: ' . $this->get_additional_time($package) . ')');
+                }
+            } else {
+                if ('yes' === $this->debug) {
+                    $log = new WC_Logger();
+                    $log->add($this->id, 'Missing Prazo field in shipping response');
+                }
+            }
         }
 
         // Create the rate and apply filters.
@@ -461,13 +487,51 @@ abstract class Datadev_Total_Express_Shipping extends WC_Shipping_Method {
         );
 
         $rates = apply_filters('datadev_total_express_shipping_methods', array($rate), $package);
+        
+        if ('yes' === $this->debug) {
+            $log = new WC_Logger();
+            $log->add($this->id, 'Final shipping rate: ' . print_r($rates[0], true));
+        }
                 
         // Add rate to WooCommerce.
         $this->add_rate($rates[0]);
     }
 
+    /**
+     * Convert string number to float, handling Brazilian decimal format.
+     *
+     * @param string $string_number The string number to convert.
+     * @return float
+     */
     public function string_to_float($string_number) {
-        return floatval(str_replace(',', '.', str_replace('.', '', $string_number)));
+        if (empty($string_number)) {
+            return 0.0;
+        }
+        
+        // Remove any spaces
+        $string_number = trim($string_number);
+        
+        // Handle Brazilian format (1.234,56) vs International format (1,234.56)
+        if (strpos($string_number, ',') !== false && strpos($string_number, '.') !== false) {
+            // Both comma and dot present - determine format based on position
+            $last_comma = strrpos($string_number, ',');
+            $last_dot = strrpos($string_number, '.');
+            
+            if ($last_comma > $last_dot) {
+                // Brazilian format: 1.234,56
+                $string_number = str_replace('.', '', $string_number); // Remove thousand separators
+                $string_number = str_replace(',', '.', $string_number); // Convert decimal separator
+            } else {
+                // International format: 1,234.56
+                $string_number = str_replace(',', '', $string_number); // Remove thousand separators
+            }
+        } elseif (strpos($string_number, ',') !== false) {
+            // Only comma present - assume it's decimal separator (Brazilian format)
+            $string_number = str_replace(',', '.', $string_number);
+        }
+        // If only dot present, assume it's already in correct format
+        
+        return floatval($string_number);
     }
 
 }

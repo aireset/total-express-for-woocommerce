@@ -21,6 +21,7 @@ class Datadev_Total_Express_Integration extends WC_Integration {
     public function __construct() {
         $this->id = 'datadev-total-express-integration';
         $this->method_title = __('Total Express', 'datadev-total-express-for-woocommerce');
+        $this->method_description = __('Integration settings for Total Express shipping methods.', 'datadev-total-express-for-woocommerce');
 
         // Load the form fields.
         $this->init_form_fields();
@@ -30,6 +31,19 @@ class Datadev_Total_Express_Integration extends WC_Integration {
 
         // Actions.
         add_action('woocommerce_update_options_integration_' . $this->id, array($this, 'process_admin_options'));
+    }
+
+    /**
+     * Initialize integration form fields.
+     */
+    public function init_form_fields() {
+        $this->form_fields = array(
+            'info' => array(
+                'title' => __('Total Express Integration', 'datadev-total-express-for-woocommerce'),
+                'type' => 'title',
+                'description' => __('Configure your Total Express integration settings. The shipping methods must be configured separately in the shipping zones.', 'datadev-total-express-for-woocommerce'),
+            ),
+        );
     }
 
     /**
