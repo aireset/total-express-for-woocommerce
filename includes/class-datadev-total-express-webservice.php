@@ -347,7 +347,7 @@ class Datadev_Total_Express_Webservice {
      * @return string
      */
     public function get_password() {
-        return apply_filters('datadev_password_password', $this->password, $this->id, $this->instance_id, $this->package);
+        return apply_filters('datadev_total_express_password', $this->password, $this->id, $this->instance_id, $this->package);
     }
 
     /**
@@ -392,7 +392,7 @@ class Datadev_Total_Express_Webservice {
      * @return bool
      */
     protected function is_available() {
-        return !empty($this->modality) || !empty($this->destination_postcode) || 0 === $this->get_height();
+        return !empty($this->modality) && !empty($this->destination_postcode) && 0 < $this->get_height() && 0 < $this->get_weight();
     }
 
     /**
@@ -405,6 +405,17 @@ class Datadev_Total_Express_Webservice {
 
         // Checks if service and postcode are empty.
         if (!$this->is_available()) {
+            if ('yes' === $this->debug) {
+                $this->log->add($this->id, 'Shipping calculation not available. Missing required data: modality=' . $this->modality . ', postcode=' . $this->destination_postcode . ', height=' . $this->get_height() . ', weight=' . $this->get_weight());
+            }
+            return $shipping;
+        }
+
+        // Validate user credentials
+        if (empty($this->get_user()) || empty($this->get_password())) {
+            if ('yes' === $this->debug) {
+                $this->log->add($this->id, 'Missing user credentials for Total Express API');
+            }
             return $shipping;
         }
 
@@ -432,25 +443,33 @@ class Datadev_Total_Express_Webservice {
             $auth = 'Basic ' . base64_encode($this->get_user() . ':' . $this->get_password());
 
             $args = array(
-                'timeout' => 5,
+                'timeout' => 30, // Increased timeout for better reliability
                 'headers' => array(
                     'Authorization' => $auth,
                 ),
             );
             
             $responseWSDL = wp_safe_remote_get(esc_url_raw($url), $args);
+            
             if (is_wp_error($responseWSDL)){
                 if ('yes' === $this->debug) {
-                    $this->log->add($this->id, 'WP_Error: ' . $responseWSDL->get_error_message());
+                    $this->log->add($this->id, 'WP_Error accessing WSDL: ' . $responseWSDL->get_error_message());
                 }
                 return $shipping;
-                
+            }
+
+            $response_code = wp_remote_retrieve_response_code($responseWSDL);
+            if (200 !== $response_code) {
+                if ('yes' === $this->debug) {
+                    $this->log->add($this->id, 'HTTP Error accessing WSDL. Response code: ' . $response_code);
+                }
+                return $shipping;
             }
                            
             $body = wp_remote_retrieve_body($responseWSDL);
             if (!$this->validateWSDLResponse($body)) {
                 if ('yes' === $this->debug) {
-                    $this->log->add($this->id, 'Total Express server response: ' . $body);
+                    $this->log->add($this->id, 'Invalid WSDL response received. Response: ' . substr($body, 0, 500));
                 }
                 return $shipping;
             }
@@ -464,28 +483,73 @@ class Datadev_Total_Express_Webservice {
                                 'header' => 'Authorization: ' . $auth,
                             )
                         )
-                )
+                ),
+                'cache_wsdl' => WSDL_CACHE_NONE, // Disable WSDL caching for reliability
+                'exceptions' => true, // Enable exceptions for better error handling
             );
+            
             $soap = new SoapClient($wsdl, $options);
 
             $responseCalculo = $soap->calcularFrete($params);
+            
             if ('yes' === $this->debug) {
                 $this->log->add($this->id, 'Response: ' . print_r($responseCalculo, true));
             }
+            
+            if (!isset($responseCalculo->CodigoProc)) {
+                if ('yes' === $this->debug) {
+                    $this->log->add($this->id, 'Invalid response format: missing CodigoProc field');
+                }
+                return $shipping;
+            }
+            
             if ($responseCalculo->CodigoProc == 1) {
                 if (isset($responseCalculo->DadosFrete)) {
                     $shipping = $responseCalculo->DadosFrete;
+                } else {
+                    if ('yes' === $this->debug) {
+                        $this->log->add($this->id, 'Success response but missing DadosFrete field');
+                    }
+                }
+            } else {
+                if ('yes' === $this->debug) {
+                    $error_msg = isset($responseCalculo->MsgProc) ? $responseCalculo->MsgProc : 'Unknown error';
+                    $this->log->add($this->id, 'Total Express API error. Code: ' . $responseCalculo->CodigoProc . ', Message: ' . $error_msg);
                 }
             }
+        } catch (SoapFault $fault) {
+            if ('yes' === $this->debug) {
+                $this->log->add($this->id, 'SOAP Fault: ' . $fault->getMessage() . ' (Code: ' . $fault->getCode() . ')');
+            }
         } catch (Exception $ex) {
-            $this->log->add($this->id, 'Fail: ' . $ex->getMessage());
+            if ('yes' === $this->debug) {
+                $this->log->add($this->id, 'Exception: ' . $ex->getMessage());
+            }
         }
 
         return $shipping;
     }
     
+    /**
+     * Validate WSDL response.
+     *
+     * @param string $response The WSDL response body.
+     * @return bool
+     */
     private function validateWSDLResponse($response) {
-        return strpos($response, '<') === 0;
+        // Check if response is not empty
+        if (empty($response)) {
+            return false;
+        }
+        
+        // Check if response starts with XML declaration or XML content
+        $trimmed_response = trim($response);
+        if (strpos($trimmed_response, '<?xml') === 0 || strpos($trimmed_response, '<') === 0) {
+            // Additional check to ensure it's a valid WSDL/XML by looking for key WSDL elements
+            return (strpos($response, 'wsdl:') !== false || strpos($response, 'soap:') !== false || strpos($response, 'definitions') !== false);
+        }
+        
+        return false;
     }
 
 }

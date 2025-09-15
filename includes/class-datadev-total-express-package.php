@@ -53,36 +53,25 @@ class Datadev_Total_Express_Package {
 
             if ($qty > 0 && $product->needs_shipping()) {
 
-                $_height = wc_get_dimension((float) $product->get_height(), 'cm');
-                $_width = wc_get_dimension((float) $product->get_width(), 'cm');
-                $_length = wc_get_dimension((float) $product->get_length(), 'cm');
-                $_weight = wc_get_weight((float) $product->get_weight(), 'kg');
+                $_height = max(0, wc_get_dimension((float) $product->get_height(), 'cm'));
+                $_width = max(0, wc_get_dimension((float) $product->get_width(), 'cm'));
+                $_length = max(0, wc_get_dimension((float) $product->get_length(), 'cm'));
+                $_weight = max(0, wc_get_weight((float) $product->get_weight(), 'kg'));
 
-                $height[$count] = $_height;
-                $width[$count] = $_width;
-                $length[$count] = $_length;
-                $weight[$count] = $_weight;
-
-                if ($qty > 1) {
-                    $n = $count;
-                    for ($i = 0; $i < $qty; $i++) {
-                        $height[$n] = $_height;
-                        $width[$n] = $_width;
-                        $length[$n] = $_length;
-                        $weight[$n] = $_weight;
-                        $n++;
-                    }
-                    $count = $n;
+                // Add each item quantity to the arrays
+                for ($i = 0; $i < $qty; $i++) {
+                    $height[] = $_height;
+                    $width[] = $_width;
+                    $length[] = $_length;
+                    $weight[] = $_weight;
                 }
-
-                $count++;
             }
         }
 
         return array(
-            'height' => array_values($height),
-            'length' => array_values($length),
-            'width' => array_values($width),
+            'height' => $height,
+            'length' => $length,
+            'width' => $width,
             'weight' => array_sum($weight),
         );
     }
