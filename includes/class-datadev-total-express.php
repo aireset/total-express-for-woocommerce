@@ -22,8 +22,8 @@ class Datadev_Total_Express {
     public static function init() {
         add_action('init', array(__CLASS__, 'load_plugin_textdomain'), -1);
 
-        // Checks with WooCommerce is installed.
-        if (class_exists('WC_Integration')) {
+        // Checks if WooCommerce is installed and meets minimum version requirements.
+        if (class_exists('WooCommerce') && self::is_woocommerce_compatible()) {
             self::includes();
 
             add_filter('woocommerce_integrations', array(__CLASS__, 'include_integrations'));
@@ -31,6 +31,19 @@ class Datadev_Total_Express {
         } else {
             add_action('admin_notices', array(__CLASS__, 'woocommerce_missing_notice'));
         }
+    }
+
+    /**
+     * Check if WooCommerce version is compatible.
+     *
+     * @return bool
+     */
+    private static function is_woocommerce_compatible() {
+        if (!defined('WC_VERSION')) {
+            return false;
+        }
+        
+        return version_compare(WC_VERSION, '6.0.0', '>=');
     }
 
     /**

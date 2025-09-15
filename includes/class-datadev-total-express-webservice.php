@@ -145,7 +145,7 @@ class Datadev_Total_Express_Webservice {
     /**
      * Logger.
      *
-     * @var WC_Logger
+     * @var WC_Logger_Interface
      */
     protected $log = null;
 
@@ -158,7 +158,29 @@ class Datadev_Total_Express_Webservice {
     public function __construct($id = 'total-express', $instance_id = 0) {
         $this->id = $id;
         $this->instance_id = $instance_id;
-        $this->log = new WC_Logger();
+        
+        // Use modern logger if available, fallback to old method for backward compatibility
+        if (function_exists('wc_get_logger')) {
+            $this->log = wc_get_logger();
+        } else {
+            $this->log = new WC_Logger();
+        }
+    }
+
+    /**
+     * Write log message - handles both old and new WooCommerce logger APIs
+     *
+     * @param string $message Log message
+     * @param string $level Log level (info, error, warning, etc.)
+     */
+    private function write_log($message, $level = 'info') {
+        if (method_exists($this->log, $level)) {
+            // New WooCommerce logger API
+            $this->log->$level($message, array('source' => $this->id));
+        } elseif (method_exists($this->log, 'add')) {
+            // Old WooCommerce logger API
+            $this->log->add($this->id, $message);
+        }
     }
 
     /**
@@ -202,7 +224,7 @@ class Datadev_Total_Express_Webservice {
                 );
             }
 
-            $this->log->add($this->id, 'Weight and cubage of the order: ' . print_r($data, true));
+            $this->write_log('Weight and cubage of the order: ' . print_r($data, true));
         }
     }
 
@@ -423,9 +445,9 @@ class Datadev_Total_Express_Webservice {
         $url = $this->get_webservice_url();
 
         if ('yes' === $this->debug) {
-            $this->log->add($this->id, 'Datadev - Total Express for WooCommerce: ' . DATADEV_TOTAL_EXPRESS_VERSION);
-            $this->log->add($this->id, 'Requesting Total Express WebServices: ' . $url);
-            $this->log->add($this->id, 'Params: ' . print_r($params, true));
+            $this->write_log('Datadev - Total Express for WooCommerce: ' . DATADEV_TOTAL_EXPRESS_VERSION);
+            $this->write_log('Requesting Total Express WebServices: ' . $url);
+            $this->write_log('Params: ' . print_r($params, true));
         }
 
         try {
@@ -441,7 +463,7 @@ class Datadev_Total_Express_Webservice {
             $responseWSDL = wp_safe_remote_get(esc_url_raw($url), $args);
             if (is_wp_error($responseWSDL)){
                 if ('yes' === $this->debug) {
-                    $this->log->add($this->id, 'WP_Error: ' . $responseWSDL->get_error_message());
+                    $this->write_log('WP_Error: ' . $responseWSDL->get_error_message(), 'error');
                 }
                 return $shipping;
                 
@@ -450,7 +472,7 @@ class Datadev_Total_Express_Webservice {
             $body = wp_remote_retrieve_body($responseWSDL);
             if (!$this->validateWSDLResponse($body)) {
                 if ('yes' === $this->debug) {
-                    $this->log->add($this->id, 'Total Express server response: ' . $body);
+                    $this->write_log('Total Express server response: ' . $body, 'error');
                 }
                 return $shipping;
             }
@@ -470,7 +492,7 @@ class Datadev_Total_Express_Webservice {
 
             $responseCalculo = $soap->calcularFrete($params);
             if ('yes' === $this->debug) {
-                $this->log->add($this->id, 'Response: ' . print_r($responseCalculo, true));
+                $this->write_log('Response: ' . print_r($responseCalculo, true));
             }
             if ($responseCalculo->CodigoProc == 1) {
                 if (isset($responseCalculo->DadosFrete)) {
@@ -478,7 +500,7 @@ class Datadev_Total_Express_Webservice {
                 }
             }
         } catch (Exception $ex) {
-            $this->log->add($this->id, 'Fail: ' . $ex->getMessage());
+            $this->write_log('Fail: ' . $ex->getMessage(), 'error');
         }
 
         return $shipping;
