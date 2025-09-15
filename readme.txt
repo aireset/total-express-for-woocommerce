@@ -1,10 +1,10 @@
 === Datadev - Total Express for WooCommerce ===
 Contributors: datadev, skydogtk
 Tags: shipping, delivery, woocommerce, total express
-Requires at least: 5.2
-Tested up to: 5.5.1
-Stable tag: 1.1.3
-Requires PHP: 5.6
+Requires at least: 5.8
+Tested up to: 6.4
+Stable tag: 1.2.0
+Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -34,7 +34,7 @@ Confira o nosso guia de instalação e configuração na aba [Installation](http
 
 = Compatibilidade =
 
-Requer WooCommerce 3.8 ou posterior para funcionar.
+Requer WooCommerce 6.0 ou posterior para funcionar.
 
 = Dúvidas? =
 
@@ -73,7 +73,7 @@ Este plugin esta licenciado como GPL.
 
 = O que eu preciso para utilizar este plugin? =
 
-* WooCommerce 3.8 ou posterior.
+* WooCommerce 6.0 ou posterior.
 * [SimpleXML](http://php.net/manual/pt_BR/book.simplexml.php) ativado no PHP (note que já é ativado por padrão no PHP 5).
 - Modulo [SOAP](http://php.net/manual/pt_BR/book.soap.php) (utilizado para comunicação com o webservice de cálculo de frete).
 * Adicionar peso e dimensões nos produtos que pretende entregar.
@@ -154,6 +154,13 @@ Em caso de dúvidas, basta abrir um tópico no [fórum de suporte do plugin](htt
 - Em breve
 
 == Changelog ==
+
+= 1.2.0 - 2024/12/19 =
+
+- Atualização para compatibilidade com WooCommerce 9.4.0
+- Atualização de requisitos mínimos: WordPress 5.8+, PHP 7.4+, WooCommerce 6.0+
+- Modernização do sistema de logs para usar wc_get_logger()
+- Melhoria na compatibilidade com versões mais recentes do WooCommerce
 
 = 1.0.0 - 2019/11/12 =
 
